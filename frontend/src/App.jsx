@@ -25,6 +25,7 @@ import {
 
 import { fetchVerifications } from './services/verificationApi';
 import { fetchRenewals } from './services/renewalApi';
+import { fetchReleases } from './services/releaseApi';
 import { CheckCircle2, X } from 'lucide-react';
 
 function App() {
@@ -34,17 +35,17 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Triggers to refresh lists when records are added, verified, or renewed
+  // Triggers to refresh lists when records are added, verified, renewed, or released
   const [fdrRefreshTrigger, setFdrRefreshTrigger] = useState(0);
   const [verificationRefreshTrigger, setVerificationRefreshTrigger] = useState(0);
   const [renewalRefreshTrigger, setRenewalRefreshTrigger] = useState(0);
+  const [releaseRefreshTrigger, setReleaseRefreshTrigger] = useState(0);
 
   // Live counts from backend API
   const [pendingVerCount, setPendingVerCount] = useState(1);
   const [expiringRenewalsCount, setExpiringRenewalsCount] = useState(0);
+  const [pendingReleaseCount, setPendingReleaseCount] = useState(0);
 
-  // Release Requests continues using mock data for now
-  const [releaseRequests, setReleaseRequests] = useState(INITIAL_RELEASE_REQUESTS);
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
 
   // Modals
@@ -59,7 +60,7 @@ function App() {
     }, 4500);
   };
 
-  // Sync pending verification count and upcoming maturities count
+  // Sync pending verification count, upcoming maturities count, and pending release count
   useEffect(() => {
     async function updateCounts() {
       try {
@@ -75,9 +76,16 @@ function App() {
       } catch (e) {
         // Safe fallback
       }
+
+      try {
+        const relList = await fetchReleases({ status: 'Pending Approval' });
+        setPendingReleaseCount(relList.length);
+      } catch (e) {
+        // Safe fallback
+      }
     }
     updateCounts();
-  }, [verificationRefreshTrigger, fdrRefreshTrigger, renewalRefreshTrigger]);
+  }, [verificationRefreshTrigger, fdrRefreshTrigger, renewalRefreshTrigger, releaseRefreshTrigger]);
 
   // Dashboard KPI definitions
   const dynamicKpiCards = [
@@ -142,7 +150,7 @@ function App() {
     {
       id: 'release-requests',
       title: 'Release Requests',
-      value: '11',
+      value: String(pendingReleaseCount),
       subtext: 'Matured / Closure requested',
       trend: 'purple',
       icon: 'FileBadge',
@@ -229,7 +237,7 @@ function App() {
         isOpen={sidebarOpen}
         verificationCount={pendingVerCount}
         renewalsCount={42}
-        releaseCount={releaseRequests.filter((r) => r.status === 'Pending Approval').length}
+        releaseCount={pendingReleaseCount}
       />
 
       {/* Main Content Area */}
@@ -350,12 +358,15 @@ function App() {
             />
           )}
 
-          {/* VIEW: RELEASE REQUESTS (MOCK) */}
+          {/* VIEW: RELEASE REQUESTS (CONNECTED TO REAL POSTGRESQL API) */}
           {activeNav === 'release-requests' && (
             <ReleaseRequestsPage
-              releaseRequests={releaseRequests}
-              onUpdateReleaseStatus={handleUpdateReleaseStatus}
-              onActionFeedback={showToast}
+              refreshTrigger={releaseRefreshTrigger}
+              onActionFeedback={(msg) => {
+                showToast(msg);
+                setFdrRefreshTrigger((prev) => prev + 1);
+                setReleaseRefreshTrigger((prev) => prev + 1);
+              }}
               onViewFdrByNumber={(fdrNum) => setSelectedFdrId(fdrNum)}
             />
           )}

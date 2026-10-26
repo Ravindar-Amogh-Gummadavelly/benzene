@@ -18,6 +18,8 @@ const statusStyles = {
   'Overdue for Renewal': 'bg-rose-50 text-rose-700 border-rose-200 ring-rose-600/20',
   'Pending Renewal Notice': 'bg-amber-50 text-amber-700 border-amber-200 ring-amber-600/20',
   'Active Term': 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-600/20',
+  'Pending Approval': 'bg-purple-50 text-purple-700 border-purple-200 ring-purple-600/20',
+  'Release Requested': 'bg-purple-50 text-purple-700 border-purple-200 ring-purple-600/20',
 };
 
 export default function StatusBadge({ status, className = '' }) {

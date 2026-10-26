@@ -6,6 +6,7 @@ import healthRouter from './routes/health.routes.js';
 import fdrRouter from './routes/fdr.routes.js';
 import verificationRouter from './routes/verification.routes.js';
 import renewalRouter from './routes/renewal.routes.js';
+import releaseRouter from './routes/release.routes.js';
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use('/api', healthRouter);
 app.use('/api/fdr', fdrRouter);
 app.use('/api/verifications', verificationRouter);
 app.use('/api/renewals', renewalRouter);
+app.use('/api/releases', releaseRouter);
 
 // Root fallback
 app.get('/', (req, res) => {
