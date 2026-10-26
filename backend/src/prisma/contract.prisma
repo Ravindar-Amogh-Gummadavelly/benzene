@@ -1,0 +1,134 @@
+// use prisma-8
+enum UserRole {
+  INSTITUTION_USER
+  AICTE_OFFICER
+  APPROVING_OFFICER
+  ADMIN
+}
+
+enum FdrStatus {
+  SUBMITTED
+  UNDER_VERIFICATION
+  APPROVED
+  DISCREPANCY
+  ACTIVE
+  EXPIRED
+  RELEASE_REQUESTED
+  RELEASED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  DISCREPANCY
+  REJECTED
+}
+
+model Institution {
+  id         Int                        @id @default(autoincrement())
+  name       String
+  code       String                     @unique
+  address    String?
+  email      String?
+  phone      String?
+  users      User[]
+  fdrRecords FdrRecord[]
+  createdAt  TimestamptzString          @default(now())
+  updatedAt  temporal.updatedAtString()
+}
+
+model User {
+  id            Int                        @id @default(autoincrement())
+  email         String                     @unique
+  passwordHash  String
+  name          String
+  role          UserRole
+  institution   Institution?               @relation(fields: [institutionId], references: [id])
+  institutionId Int?
+  verifications Verification[]
+  auditLogs     AuditLog[]
+  createdAt     TimestamptzString          @default(now())
+  updatedAt     temporal.updatedAtString()
+}
+
+model FdrRecord {
+  id              Int                        @id @default(autoincrement())
+  fdrNumber       String                     @unique
+  bankName        String
+  branchName      String?
+  amount          Decimal
+  issueDate       DateTime
+  maturityDate    DateTime
+  status          FdrStatus                  @default(SUBMITTED)
+  institution     Institution                @relation(fields: [institutionId], references: [id])
+  institutionId   Int
+  documents       Document[]
+  verifications   Verification[]
+  renewals        Renewal[]
+  releaseRequests ReleaseRequest[]
+  createdAt       TimestamptzString          @default(now())
+  updatedAt       temporal.updatedAtString()
+
+  @@index([institutionId])
+  @@index([maturityDate])
+  @@index([status])
+}
+
+model Document {
+  id           Int               @id @default(autoincrement())
+  fileName     String
+  filePath     String
+  documentType String
+  fdrRecord    FdrRecord         @relation(fields: [fdrRecordId], references: [id])
+  fdrRecordId  Int
+  uploadedAt   TimestamptzString @default(now())
+}
+
+model Verification {
+  id          Int                @id @default(autoincrement())
+  status      VerificationStatus @default(PENDING)
+  remarks     String?
+  verifiedAt  TimestamptzString?
+  fdrRecord   FdrRecord          @relation(fields: [fdrRecordId], references: [id])
+  fdrRecordId Int
+  verifier    User               @relation(fields: [verifierId], references: [id])
+  verifierId  Int
+  createdAt   TimestamptzString  @default(now())
+
+  @@index([fdrRecordId])
+  @@index([status])
+}
+
+model Renewal {
+  id              Int                @id @default(autoincrement())
+  oldMaturityDate DateTime
+  newMaturityDate DateTime?
+  renewedAt       TimestamptzString?
+  remarks         String?
+  fdrRecord       FdrRecord          @relation(fields: [fdrRecordId], references: [id])
+  fdrRecordId     Int
+  createdAt       TimestamptzString  @default(now())
+}
+
+model ReleaseRequest {
+  id          Int                @id @default(autoincrement())
+  requestedAt TimestamptzString  @default(now())
+  approvedAt  TimestamptzString?
+  remarks     String?
+  fdrRecord   FdrRecord          @relation(fields: [fdrRecordId], references: [id])
+  fdrRecordId Int
+}
+
+model AuditLog {
+  id         Int               @id @default(autoincrement())
+  action     String
+  entityType String
+  entityId   Int?
+  details    String?
+  user       User?             @relation(fields: [userId], references: [id])
+  userId     Int?
+  createdAt  TimestamptzString @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

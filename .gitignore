@@ -1,0 +1,7 @@
+
+# AI/editor assistant files
+.agent/
+backend/.agents/
+backend/.claude/
+backend/.cursor/
+backend/.devin/
