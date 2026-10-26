@@ -219,6 +219,19 @@ export const fdrService = {
       institutionId: institution.id,
     });
 
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'FDR_CREATED',
+        entityType: 'FdrRecord',
+        entityId: created.id,
+        details: `FDR ${created.fdrNumber} created for institution '${institution.name}' in amount ${data.amount}.`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (FDR create):', e.message);
+    }
+
     // 5. Return formatted
     return this.getFdrById(created.id);
   },
@@ -276,6 +289,19 @@ export const fdrService = {
 
     await db.orm.public.FdrRecord.where({ id: parsedId }).update(updatePayload);
 
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'FDR_UPDATED',
+        entityType: 'FdrRecord',
+        entityId: parsedId,
+        details: `FDR ${existing.fdrNumber} updated with fields: ${Object.keys(updatePayload).join(', ')}.`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (FDR update):', e.message);
+    }
+
     return this.getFdrById(parsedId);
   },
 
@@ -296,6 +322,20 @@ export const fdrService = {
     }
 
     await db.orm.public.FdrRecord.where({ id: parsedId }).delete();
+
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'FDR_DELETED',
+        entityType: 'FdrRecord',
+        entityId: parsedId,
+        details: `FDR ${existing.fdrNumber} (Bank: ${existing.bankName}) deleted from database.`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (FDR delete):', e.message);
+    }
+
     return true;
   },
 

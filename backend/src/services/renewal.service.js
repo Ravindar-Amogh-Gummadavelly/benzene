@@ -442,6 +442,19 @@ export const renewalService = {
       status: 'ACTIVE',
     });
 
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'RENEWAL_COMPLETED',
+        entityType: 'Renewal',
+        entityId: targetRenewalId,
+        details: `Renewal #${targetRenewalId} completed for FDR ${fdr.fdrNumber}. Extended to ${calculatedNewMaturity.toISOString().split('T')[0]}.`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (Renewal complete):', e.message);
+    }
+
     return this.getRenewalById(targetRenewalId);
   },
 };

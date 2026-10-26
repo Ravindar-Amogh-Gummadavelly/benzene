@@ -7,6 +7,10 @@ import fdrRouter from './routes/fdr.routes.js';
 import verificationRouter from './routes/verification.routes.js';
 import renewalRouter from './routes/renewal.routes.js';
 import releaseRouter from './routes/release.routes.js';
+import documentRouter from './routes/document.routes.js';
+import auditRouter from './routes/audit.routes.js';
+import dashboardRouter from './routes/dashboard.routes.js';
+import reportRouter from './routes/report.routes.js';
 
 dotenv.config();
 
@@ -23,6 +27,10 @@ app.use('/api/fdr', fdrRouter);
 app.use('/api/verifications', verificationRouter);
 app.use('/api/renewals', renewalRouter);
 app.use('/api/releases', releaseRouter);
+app.use('/api/documents', documentRouter);
+app.use('/api/audit-logs', auditRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/reports', reportRouter);
 
 // Root fallback
 app.get('/', (req, res) => {

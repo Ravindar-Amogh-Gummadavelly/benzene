@@ -10,22 +10,15 @@ import FdrManagementPage from './components/FdrManagementPage';
 import VerificationPage from './components/VerificationPage';
 import RenewalsPage from './components/RenewalsPage';
 import ReleaseRequestsPage from './components/ReleaseRequestsPage';
+import ReportsPage from './components/ReportsPage';
+import AuditLogsPage from './components/AuditLogsPage';
 import ComingSoonPage from './components/ComingSoonPage';
 import FdrDetailsModal from './components/FdrDetailsModal';
 import VerificationReviewModal from './components/VerificationReviewModal';
 import NewFdrModal from './components/NewFdrModal';
 
-import {
-  INITIAL_FDR_LIST,
-  INITIAL_VERIFICATIONS,
-  INITIAL_RENEWALS,
-  INITIAL_RELEASE_REQUESTS,
-  INITIAL_NOTIFICATIONS,
-} from './data/mockData';
-
-import { fetchVerifications } from './services/verificationApi';
-import { fetchRenewals } from './services/renewalApi';
-import { fetchReleases } from './services/releaseApi';
+import { INITIAL_NOTIFICATIONS } from './data/mockData';
+import { fetchDashboardStats } from './services/dashboardApi';
 import { CheckCircle2, X } from 'lucide-react';
 
 function App() {
@@ -40,11 +33,11 @@ function App() {
   const [verificationRefreshTrigger, setVerificationRefreshTrigger] = useState(0);
   const [renewalRefreshTrigger, setRenewalRefreshTrigger] = useState(0);
   const [releaseRefreshTrigger, setReleaseRefreshTrigger] = useState(0);
+  const [globalRefreshTrigger, setGlobalRefreshTrigger] = useState(0);
 
-  // Live counts from backend API
-  const [pendingVerCount, setPendingVerCount] = useState(1);
-  const [expiringRenewalsCount, setExpiringRenewalsCount] = useState(0);
-  const [pendingReleaseCount, setPendingReleaseCount] = useState(0);
+  // Real Dashboard Stats from PostgreSQL
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
 
@@ -60,40 +53,43 @@ function App() {
     }, 4500);
   };
 
-  // Sync pending verification count, upcoming maturities count, and pending release count
+  // Sync real dashboard statistics from GET /api/dashboard/stats
   useEffect(() => {
-    async function updateCounts() {
+    let isMounted = true;
+    async function loadStats() {
       try {
-        const queue = await fetchVerifications({ status: 'PENDING' });
-        setPendingVerCount(queue.length);
+        setStatsLoading(true);
+        const stats = await fetchDashboardStats();
+        if (isMounted) {
+          setDashboardStats(stats);
+        }
       } catch (e) {
-        // Safe fallback if network hiccups
-      }
-
-      try {
-        const renList = await fetchRenewals({ urgency: 'DUE_30_DAYS' });
-        setExpiringRenewalsCount(renList.length);
-      } catch (e) {
-        // Safe fallback
-      }
-
-      try {
-        const relList = await fetchReleases({ status: 'Pending Approval' });
-        setPendingReleaseCount(relList.length);
-      } catch (e) {
-        // Safe fallback
+        console.error('Failed to load dashboard stats:', e);
+      } finally {
+        if (isMounted) {
+          setStatsLoading(false);
+        }
       }
     }
-    updateCounts();
-  }, [verificationRefreshTrigger, fdrRefreshTrigger, renewalRefreshTrigger, releaseRefreshTrigger]);
+    loadStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    verificationRefreshTrigger,
+    fdrRefreshTrigger,
+    renewalRefreshTrigger,
+    releaseRefreshTrigger,
+    globalRefreshTrigger,
+  ]);
 
-  // Dashboard KPI definitions
+  // Real Dashboard KPI definitions derived from PostgreSQL
   const dynamicKpiCards = [
     {
       id: 'total-fdrs',
       title: 'Total FDRs',
-      value: '1,248',
-      subtext: '+34 from last quarter',
+      value: dashboardStats ? String(dashboardStats.totalFdrs) : '...',
+      subtext: dashboardStats ? `${dashboardStats.totalSecuredAmountFormatted} secured` : 'PostgreSQL Live Source',
       trend: 'neutral',
       icon: 'Layers',
       onClick: () => {
@@ -104,8 +100,10 @@ function App() {
     {
       id: 'active-fdrs',
       title: 'Active FDRs',
-      value: '1,086',
-      subtext: '87% compliant in system',
+      value: dashboardStats ? String(dashboardStats.activeFdrs) : '...',
+      subtext: dashboardStats && dashboardStats.totalFdrs > 0
+        ? `${Math.round((dashboardStats.activeFdrs / dashboardStats.totalFdrs) * 100)}% compliant in system`
+        : 'Active Lien Deposits',
       trend: 'positive',
       icon: 'ShieldCheck',
       onClick: () => {
@@ -116,7 +114,7 @@ function App() {
     {
       id: 'expiring-soon',
       title: 'Expiring in 30 Days',
-      value: String(expiringRenewalsCount || 42),
+      value: dashboardStats ? String(dashboardStats.expiringIn30Days) : '...',
       subtext: 'Requires renewal notices',
       trend: 'warning',
       icon: 'Clock',
@@ -127,7 +125,7 @@ function App() {
     {
       id: 'pending-verification',
       title: 'Pending Verification',
-      value: String(pendingVerCount),
+      value: dashboardStats ? String(dashboardStats.pendingVerifications) : '...',
       subtext: 'Awaiting bureau officer check',
       trend: 'info',
       icon: 'FileCheck',
@@ -138,8 +136,8 @@ function App() {
     {
       id: 'discrepancies',
       title: 'Discrepancies',
-      value: '18',
-      subtext: 'Flagged by bank / institution',
+      value: dashboardStats ? String(dashboardStats.discrepancies) : '...',
+      subtext: 'Flagged by bank / officer',
       trend: 'negative',
       icon: 'AlertTriangle',
       onClick: () => {
@@ -150,8 +148,8 @@ function App() {
     {
       id: 'release-requests',
       title: 'Release Requests',
-      value: String(pendingReleaseCount),
-      subtext: 'Matured / Closure requested',
+      value: dashboardStats ? String(dashboardStats.pendingReleaseRequests) : '...',
+      subtext: dashboardStats?.releasedFdrs ? `${dashboardStats.releasedFdrs} already released` : 'Pending Approval',
       trend: 'purple',
       icon: 'FileBadge',
       onClick: () => {
@@ -161,7 +159,7 @@ function App() {
   ];
 
   // Navigation handler
-  const handleNavClick = (id, label) => {
+  const handleNavClick = (id) => {
     setActiveNav(id);
     setSidebarOpen(false);
     if (id === 'fdr-management') {
@@ -174,6 +172,7 @@ function App() {
     setIsAddFdrOpen(false);
     setFdrRefreshTrigger((prev) => prev + 1);
     setVerificationRefreshTrigger((prev) => prev + 1);
+    setGlobalRefreshTrigger((prev) => prev + 1);
     showToast(`FDR ${created.fdrNumber} created successfully in PostgreSQL!`);
     setSelectedFdrId(created.id);
   };
@@ -182,6 +181,7 @@ function App() {
   const handleVerificationActionComplete = (actionType, updatedRecord) => {
     setVerificationRefreshTrigger((prev) => prev + 1);
     setFdrRefreshTrigger((prev) => prev + 1);
+    setGlobalRefreshTrigger((prev) => prev + 1);
 
     if (actionType === 'approve') {
       showToast(`Verification APPROVED! FDR ${updatedRecord.fdrNumber} is now Active.`);
@@ -190,13 +190,6 @@ function App() {
     } else if (actionType === 'reject') {
       showToast(`Verification REJECTED for ${updatedRecord.fdrNumber}.`);
     }
-  };
-
-  // Release status update (Mock module)
-  const handleUpdateReleaseStatus = (reqId, newStatus) => {
-    setReleaseRequests((prev) =>
-      prev.map((req) => (req.id === reqId ? { ...req, status: newStatus } : req))
-    );
   };
 
   // Generic action handler from child components
@@ -235,9 +228,9 @@ function App() {
         activeItem={activeNav}
         onItemClick={handleNavClick}
         isOpen={sidebarOpen}
-        verificationCount={pendingVerCount}
-        renewalsCount={42}
-        releaseCount={pendingReleaseCount}
+        verificationCount={dashboardStats?.pendingVerifications || 0}
+        renewalsCount={dashboardStats?.expiringIn30Days || 0}
+        releaseCount={dashboardStats?.pendingReleaseRequests || 0}
       />
 
       {/* Main Content Area */}
@@ -251,7 +244,6 @@ function App() {
           }}
           onViewFdr={(item) => setSelectedFdrId(item.id || item.fdrNumber)}
           notifications={notifications}
-          fdrList={INITIAL_FDR_LIST}
           onActionFeedback={showToast}
           unreadCount={notifications.filter((n) => n.unread).length}
         />
@@ -274,7 +266,7 @@ function App() {
 
           {/* PAGE ROUTING BASED ON activeNav */}
 
-          {/* VIEW: DASHBOARD */}
+          {/* VIEW: DASHBOARD (FULLY BACKED BY REAL POSTGRESQL APIS) */}
           {activeNav === 'dashboard' && (
             <>
               {/* 3. KPI CARDS */}
@@ -294,9 +286,10 @@ function App() {
                 </div>
               </section>
 
-              {/* 4. FDR STATUS OVERVIEW */}
+              {/* 4. FDR STATUS OVERVIEW (REAL POSTGRESQL DATA) */}
               <section aria-label="Status Distribution Overview">
                 <StatusOverview
+                  refreshTrigger={globalRefreshTrigger}
                   onSelectFilter={(status) => {
                     setFdrListFilter(status);
                     setActiveNav('fdr-management');
@@ -304,24 +297,30 @@ function App() {
                 />
               </section>
 
-              {/* 5. UPCOMING MATURITIES TABLE */}
+              {/* 5. UPCOMING MATURITIES TABLE (REAL POSTGRESQL DATA) */}
               <section aria-label="Upcoming Maturities Schedule">
-                <UpcomingMaturitiesTable onAction={handleAction} />
+                <UpcomingMaturitiesTable
+                  refreshTrigger={globalRefreshTrigger}
+                  onAction={handleAction}
+                />
               </section>
 
-              {/* 6 & 7. TWO-COLUMN SPLIT: PENDING VERIFICATION + RECENT ACTIVITY */}
+              {/* 6 & 7. TWO-COLUMN SPLIT: PENDING VERIFICATION + RECENT ACTIVITY (REAL POSTGRESQL DATA) */}
               <section
                 aria-label="Pending Verification and Audit Logs"
                 className="grid grid-cols-1 gap-6 lg:grid-cols-12"
               >
                 <div className="lg:col-span-7">
                   <PendingVerificationSection
-                    verifications={INITIAL_VERIFICATIONS}
+                    refreshTrigger={globalRefreshTrigger}
                     onAction={handleAction}
                   />
                 </div>
                 <div className="lg:col-span-5">
-                  <RecentActivity onAction={handleAction} />
+                  <RecentActivity
+                    refreshTrigger={globalRefreshTrigger}
+                    onAction={handleAction}
+                  />
                 </div>
               </section>
             </>
@@ -353,6 +352,7 @@ function App() {
                 showToast(msg);
                 setFdrRefreshTrigger((prev) => prev + 1);
                 setRenewalRefreshTrigger((prev) => prev + 1);
+                setGlobalRefreshTrigger((prev) => prev + 1);
               }}
               onViewFdrByNumber={(fdrNum) => setSelectedFdrId(fdrNum)}
             />
@@ -366,28 +366,23 @@ function App() {
                 showToast(msg);
                 setFdrRefreshTrigger((prev) => prev + 1);
                 setReleaseRefreshTrigger((prev) => prev + 1);
+                setGlobalRefreshTrigger((prev) => prev + 1);
               }}
               onViewFdrByNumber={(fdrNum) => setSelectedFdrId(fdrNum)}
             />
           )}
 
-          {/* VIEW: COMING SOON PAGES */}
+          {/* VIEW: REAL REPORTS PAGE */}
           {activeNav === 'reports' && (
-            <ComingSoonPage
-              title="Reports &amp; Analytics Module"
-              description="Comprehensive institutional compliance reports, bank-wise lien exposures, and annual audit reconciliations."
-              onBackToDashboard={() => setActiveNav('dashboard')}
-            />
+            <ReportsPage onActionFeedback={showToast} />
           )}
 
+          {/* VIEW: REAL AUDIT LOGS PAGE */}
           {activeNav === 'audit-logs' && (
-            <ComingSoonPage
-              title="Immutable Bureau Audit Logs"
-              description="Chronological event log tracking lien endorsements, officer approvals, and bank verification certificates."
-              onBackToDashboard={() => setActiveNav('dashboard')}
-            />
+            <AuditLogsPage onActionFeedback={showToast} />
           )}
 
+          {/* VIEW: SETTINGS COMING SOON */}
           {activeNav === 'settings' && (
             <ComingSoonPage
               title="Bureau &amp; Portal Settings"
@@ -404,16 +399,19 @@ function App() {
       </div>
 
       {/* MODALS */}
-      {/* 1. FDR Details Dossier Modal (Connected to GET /api/fdr/:id) */}
+      {/* 1. FDR Details Dossier Modal with Database-backed Documents */}
       {selectedFdrId && (
         <FdrDetailsModal
           fdrId={selectedFdrId}
-          onClose={() => setSelectedFdrId(null)}
+          onClose={() => {
+            setSelectedFdrId(null);
+            setGlobalRefreshTrigger((prev) => prev + 1);
+          }}
           onActionFeedback={showToast}
         />
       )}
 
-      {/* 2. Verification Review Modal (Connected to real verification API) */}
+      {/* 2. Verification Review Modal */}
       {selectedVerificationId && (
         <VerificationReviewModal
           verificationId={selectedVerificationId}
@@ -422,7 +420,7 @@ function App() {
         />
       )}
 
-      {/* 3. Add New FDR Modal (Connected to POST /api/fdr) */}
+      {/* 3. Add New FDR Modal */}
       {isAddFdrOpen && (
         <NewFdrModal
           onClose={() => setIsAddFdrOpen(false)}

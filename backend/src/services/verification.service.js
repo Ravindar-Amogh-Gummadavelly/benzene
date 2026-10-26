@@ -234,6 +234,19 @@ export const verificationService = {
       });
     }
 
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'VERIFICATION_APPROVED',
+        entityType: 'Verification',
+        entityId: parsedId,
+        details: `Verification #${parsedId} approved for FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}. Status updated to APPROVED.`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (Verification approve):', e.message);
+    }
+
     return this.getVerificationById(parsedId);
   },
 
@@ -277,6 +290,19 @@ export const verificationService = {
       });
     }
 
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'VERIFICATION_DISCREPANCY',
+        entityType: 'Verification',
+        entityId: parsedId,
+        details: `Discrepancy raised on verification #${parsedId} (FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}): ${remarks.trim()}`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (Verification discrepancy):', e.message);
+    }
+
     return this.getVerificationById(parsedId);
   },
 
@@ -318,6 +344,19 @@ export const verificationService = {
       await db.orm.public.FdrRecord.where({ id: existing.fdrRecordId }).update({
         status: 'DISCREPANCY',
       });
+    }
+
+    // Audit Log
+    try {
+      await db.orm.public.AuditLog.create({
+        action: 'VERIFICATION_REJECTED',
+        entityType: 'Verification',
+        entityId: parsedId,
+        details: `Verification #${parsedId} rejected for FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}: ${remarks.trim()}`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('AuditLog notice (Verification reject):', e.message);
     }
 
     return this.getVerificationById(parsedId);
