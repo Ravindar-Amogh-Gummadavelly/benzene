@@ -1,7 +1,8 @@
 /**
  * Frontend API client for Security Deposit Release Requests & NOC module.
- * Uses Vite `/api` reverse proxy.
+ * Uses apiFetch for automatic Bearer token injection.
  */
+import { apiFetch } from './apiClient';
 
 /**
  * Fetch all release requests.
@@ -17,13 +18,13 @@ export async function fetchReleases(params = {}) {
   const qs = query.toString();
   const url = `/api/releases${qs ? `?${qs}` : ''}`;
 
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch release requests (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data || [];
 }
 
@@ -31,13 +32,13 @@ export async function fetchReleases(params = {}) {
  * Fetch a specific release request by ID.
  */
 export async function fetchReleaseById(id) {
-  const res = await fetch(`/api/releases/${id}`);
+  const res = await apiFetch(`/api/releases/${id}`);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch release request #${id} (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
@@ -46,7 +47,7 @@ export async function fetchReleaseById(id) {
  * body: { fdrId, fdrNumber, remarks }
  */
 export async function createReleaseRequest(data = {}) {
-  const res = await fetch('/api/releases', {
+  const res = await apiFetch('/api/releases', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -57,63 +58,60 @@ export async function createReleaseRequest(data = {}) {
     throw new Error(errorData.message || `Failed to create release request (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
 /**
- * Update an existing release request.
+ * Approve a release request.
+ * body: { approvedAmount, remarks, generateNoc, nocReferenceNumber, conditions }
  */
-export async function updateReleaseRequest(id, data = {}) {
-  const res = await fetch(`/api/releases/${id}`, {
-    method: 'PUT',
+export async function approveReleaseRequest(id, data = {}) {
+  const res = await apiFetch(`/api/releases/${id}/approve`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to update release request (HTTP ${res.status})`);
+    throw new Error(errorData.message || `Failed to approve release request #${id} (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
 /**
- * Approve release request and release FDR.
+ * Reject a release request.
+ * body: { rejectionReason, remarks }
  */
-export async function approveReleaseRequest(id, remarks = '') {
-  const res = await fetch(`/api/releases/${id}/approve`, {
+export async function rejectReleaseRequest(id, data = {}) {
+  const res = await apiFetch(`/api/releases/${id}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ remarks }),
+    body: JSON.stringify(data),
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to approve release request (HTTP ${res.status})`);
+    throw new Error(errorData.message || `Failed to reject release request #${id} (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
 /**
- * Reject release request with mandatory reason.
+ * Fetch aggregated release request statistics.
  */
-export async function rejectReleaseRequest(id, remarks) {
-  const res = await fetch(`/api/releases/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ remarks }),
-  });
-
+export async function fetchReleaseStats() {
+  const res = await apiFetch('/api/releases/stats');
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Failed to reject release request (HTTP ${res.status})`);
+    throw new Error(errorData.message || `Failed to fetch release stats (HTTP ${res.status})`);
   }
 
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }

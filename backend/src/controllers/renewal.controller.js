@@ -6,7 +6,13 @@ export const renewalController = {
    */
   async getAll(req, res) {
     try {
-      const { status, search, institutionId, urgency } = req.query;
+      const { status, search, urgency } = req.query;
+      let institutionId = req.query.institutionId;
+
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
       const renewals = await renewalService.getAllRenewals({
         status,
         search,
@@ -43,6 +49,15 @@ export const renewalController = {
         });
       }
 
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (renewal.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to access renewals of another institution.',
+          });
+        }
+      }
+
       return res.status(200).json({
         status: 'ok',
         data: renewal,
@@ -64,11 +79,32 @@ export const renewalController = {
       const { id } = req.params;
       const { newMaturityDate, remarks, updateFdrStatus } = req.body || {};
 
-      const result = await renewalService.createRenewal(id, {
-        newMaturityDate,
-        remarks,
-        updateFdrStatus,
-      });
+      const existing = await renewalService.getRenewalById(id);
+      if (!existing) {
+        return res.status(404).json({
+          status: 'error',
+          message: `Record with ID '${id}' not found.`,
+        });
+      }
+
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to initiate renewals for another institution.',
+          });
+        }
+      }
+
+      const result = await renewalService.createRenewal(
+        id,
+        {
+          newMaturityDate,
+          remarks,
+          updateFdrStatus,
+        },
+        req.user?.id
+      );
 
       return res.status(201).json({
         status: 'ok',
@@ -92,10 +128,31 @@ export const renewalController = {
       const { id } = req.params;
       const { newMaturityDate, remarks } = req.body || {};
 
-      const result = await renewalService.updateRenewal(id, {
-        newMaturityDate,
-        remarks,
-      });
+      const existing = await renewalService.getRenewalById(id);
+      if (!existing) {
+        return res.status(404).json({
+          status: 'error',
+          message: `Record with ID '${id}' not found.`,
+        });
+      }
+
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to update renewals for another institution.',
+          });
+        }
+      }
+
+      const result = await renewalService.updateRenewal(
+        id,
+        {
+          newMaturityDate,
+          remarks,
+        },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',
@@ -119,11 +176,15 @@ export const renewalController = {
       const { id } = req.params;
       const { newMaturityDate, extensionYears, remarks } = req.body || {};
 
-      const result = await renewalService.completeRenewal(id, {
-        newMaturityDate,
-        extensionYears,
-        remarks,
-      });
+      const result = await renewalService.completeRenewal(
+        id,
+        {
+          newMaturityDate,
+          extensionYears,
+          remarks,
+        },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',

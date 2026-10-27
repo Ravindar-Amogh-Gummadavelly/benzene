@@ -6,7 +6,14 @@ export const dashboardController = {
    */
   async getStats(req, res) {
     try {
-      const stats = await dashboardService.getStats();
+      let institutionId = req.query.institutionId;
+
+      // Scoping for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
+      const stats = await dashboardService.getStats({ institutionId });
       return res.status(200).json({
         status: 'ok',
         data: stats,

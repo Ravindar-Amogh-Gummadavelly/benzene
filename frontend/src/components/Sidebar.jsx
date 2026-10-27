@@ -17,20 +17,91 @@ export default function Sidebar({
   activeItem = 'dashboard',
   onItemClick,
   isOpen = true,
-  verificationCount = 27,
-  renewalsCount = 42,
-  releaseCount = 11,
+  currentUser,
+  onLogout,
+  verificationCount = 0,
+  renewalsCount = 0,
+  releaseCount = 0,
 }) {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'fdr-management', label: 'FDR Management', icon: FileSpreadsheet },
-    { id: 'verification', label: 'Verification', icon: CheckCircle2, badge: verificationCount > 0 ? String(verificationCount) : null },
-    { id: 'renewals', label: 'Renewals', icon: RefreshCw, badge: renewalsCount > 0 ? String(renewalsCount) : null },
-    { id: 'release-requests', label: 'Release Requests', icon: ArrowUpRight, badge: releaseCount > 0 ? String(releaseCount) : null },
-    { id: 'reports', label: 'Reports', icon: FileBarChart2 },
-    { id: 'audit-logs', label: 'Audit Logs', icon: History },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  const role = currentUser?.role || 'INSTITUTION_USER';
+
+  // Role-based navigation definition
+  const allNavItems = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      roles: ['INSTITUTION_USER', 'AICTE_OFFICER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'fdr-management',
+      label: 'FDR Management',
+      icon: FileSpreadsheet,
+      roles: ['INSTITUTION_USER', 'AICTE_OFFICER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'verification',
+      label: 'Verification',
+      icon: CheckCircle2,
+      badge: verificationCount > 0 ? String(verificationCount) : null,
+      roles: ['AICTE_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'renewals',
+      label: 'Renewals',
+      icon: RefreshCw,
+      badge: renewalsCount > 0 ? String(renewalsCount) : null,
+      roles: ['INSTITUTION_USER', 'AICTE_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'release-requests',
+      label: 'Release Requests',
+      icon: ArrowUpRight,
+      badge: releaseCount > 0 ? String(releaseCount) : null,
+      roles: ['INSTITUTION_USER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: FileBarChart2,
+      roles: ['AICTE_OFFICER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'audit-logs',
+      label: 'Audit Logs',
+      icon: History,
+      roles: ['AICTE_OFFICER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      roles: ['INSTITUTION_USER', 'AICTE_OFFICER', 'APPROVING_OFFICER', 'ADMIN'],
+    },
   ];
+
+  // Filter allowed navigation items
+  const navItems = allNavItems.filter((item) => item.roles.includes(role));
+
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const getRoleBadgeClass = () => {
+    switch (role) {
+      case 'ADMIN':
+        return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'AICTE_OFFICER':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'APPROVING_OFFICER':
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      default:
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    }
+  };
 
   return (
     <aside
@@ -98,14 +169,18 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* Institution Info Card */}
+        {/* Institution / Scope Info Card */}
         <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-600">
           <div className="flex items-center gap-2 font-semibold text-slate-800">
-            <Building2 className="h-4 w-4 text-blue-700" />
-            <span>AICTE Headquarters</span>
+            <Building2 className="h-4 w-4 text-blue-700 shrink-0" />
+            <span className="truncate">
+              {currentUser?.institution ? currentUser.institution.name : 'AICTE Headquarters'}
+            </span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
-            Nelson Mandela Marg, Vasant Kunj, New Delhi - 110070
+          <p className="mt-1 text-[11px] text-slate-500 leading-relaxed truncate">
+            {currentUser?.institution
+              ? `${currentUser.institution.code} • Institutional Scope`
+              : 'Nelson Mandela Marg, Vasant Kunj, New Delhi'}
           </p>
         </div>
       </div>
@@ -113,24 +188,26 @@ export default function Sidebar({
       {/* User / Profile Area */}
       <div className="border-t border-slate-200 p-3 bg-slate-50/80">
         <div className="flex items-center justify-between rounded-lg p-2 hover:bg-white transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-700 text-xs font-bold text-white ring-2 ring-blue-100">
-              AK
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-700 text-xs font-bold text-white ring-2 ring-blue-100">
+              {getInitials(currentUser?.name)}
             </div>
             <div className="overflow-hidden text-left">
               <p className="truncate text-xs font-semibold text-slate-900">
-                Dr. Amit K. Sharma
+                {currentUser?.name || 'Portal User'}
               </p>
-              <p className="truncate text-[11px] text-slate-500">
-                Director (Regulation)
-              </p>
+              <div className="mt-0.5">
+                <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold border ${getRoleBadgeClass()}`}>
+                  {role}
+                </span>
+              </div>
             </div>
           </div>
           <button
             type="button"
             title="Sign Out"
-            onClick={() => onItemClick && onItemClick('logout', 'Sign Out')}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 transition-colors"
+            onClick={onLogout}
+            className="rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
           </button>

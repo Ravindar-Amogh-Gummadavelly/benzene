@@ -33,6 +33,7 @@ export default function ReleaseRequestsPage({
   onActionFeedback,
   onViewFdrByNumber,
   refreshTrigger = 0,
+  currentUser,
 }) {
   const [releaseRequests, setReleaseRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -493,93 +494,104 @@ export default function ReleaseRequestsPage({
                 {/* Decision Actions for Pending Requests */}
                 {selectedRequest.status === 'Pending Approval' && (
                   <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 space-y-3">
-                    <div className="flex border-b border-purple-200 pb-2 gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setActiveModalTab('review')}
-                        className={`text-xs font-bold transition-colors pb-1 border-b-2 ${
-                          activeModalTab === 'review'
-                            ? 'border-purple-700 text-purple-900'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        1. Approve Release &amp; Issue NOC
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveModalTab('reject')}
-                        className={`text-xs font-bold transition-colors pb-1 border-b-2 ${
-                          activeModalTab === 'reject'
-                            ? 'border-rose-700 text-rose-900'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        2. Reject Request
-                      </button>
-                    </div>
-
-                    {activeModalTab === 'review' ? (
-                      <div className="space-y-2">
-                        <p className="text-purple-800 text-[11px]">
-                          Approving will transition FDR {selectedRequest.fdrNumber} to <strong>RELEASED</strong> in PostgreSQL and generate an immutable Council audit record.
+                    {currentUser?.role === 'INSTITUTION_USER' ? (
+                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-850 text-xs">
+                        <p className="font-semibold text-amber-900">Regulatory Review in Progress</p>
+                        <p className="text-amber-800 text-[11px] mt-0.5">
+                          This release request is under review by the AICTE Approving Officer. Institution users cannot approve or reject release requests.
                         </p>
-                        <input
-                          type="text"
-                          value={approvalRemarks}
-                          onChange={(e) => setApprovalRemarks(e.target.value)}
-                          placeholder="Council NOC approval remarks..."
-                          className="w-full rounded border border-purple-300 bg-white p-2 text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-purple-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleApprove(selectedRequest.id)}
-                          disabled={actionLoading}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white shadow-xs hover:bg-emerald-800 transition-colors disabled:opacity-75"
-                        >
-                          {actionLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Authorizing Release...</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span>Authorize Release &amp; Mark RELEASED</span>
-                            </>
-                          )}
-                        </button>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        <p className="text-rose-800 text-[11px]">
-                          Specify statutory rejection reason. FDR will remain active in the system.
-                        </p>
-                        <textarea
-                          rows={2}
-                          value={rejectionRemarks}
-                          onChange={(e) => setRejectionRemarks(e.target.value)}
-                          placeholder="Specify reasons for rejection (mandatory)..."
-                          className="w-full rounded border border-rose-300 bg-white p-2 text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-rose-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleReject(selectedRequest.id)}
-                          disabled={actionLoading}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-700 px-4 py-2 font-semibold text-white shadow-xs hover:bg-rose-800 transition-colors disabled:opacity-75"
-                        >
-                          {actionLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Recording Rejection...</span>
-                            </>
-                          ) : (
-                            <>
-                              <XCircle className="h-4 w-4" />
-                              <span>Confirm Rejection</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      <>
+                        <div className="flex border-b border-purple-200 pb-2 gap-4">
+                          <button
+                            type="button"
+                            onClick={() => setActiveModalTab('review')}
+                            className={`text-xs font-bold transition-colors pb-1 border-b-2 ${
+                              activeModalTab === 'review'
+                                ? 'border-purple-700 text-purple-900'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            1. Approve Release &amp; Issue NOC
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveModalTab('reject')}
+                            className={`text-xs font-bold transition-colors pb-1 border-b-2 ${
+                              activeModalTab === 'reject'
+                                ? 'border-rose-700 text-rose-900'
+                                : 'border-transparent text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            2. Reject Request
+                          </button>
+                        </div>
+
+                        {activeModalTab === 'review' ? (
+                          <div className="space-y-2">
+                            <p className="text-purple-800 text-[11px]">
+                              Approving will transition FDR {selectedRequest.fdrNumber} to <strong>RELEASED</strong> in PostgreSQL and generate an immutable Council audit record.
+                            </p>
+                            <input
+                              type="text"
+                              value={approvalRemarks}
+                              onChange={(e) => setApprovalRemarks(e.target.value)}
+                              placeholder="Council NOC approval remarks..."
+                              className="w-full rounded border border-purple-300 bg-white p-2 text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(selectedRequest.id)}
+                              disabled={actionLoading}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white shadow-xs hover:bg-emerald-800 transition-colors disabled:opacity-75"
+                            >
+                              {actionLoading ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Authorizing Release...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  <span>Authorize Release &amp; Mark RELEASED</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-rose-800 text-[11px]">
+                              Specify statutory rejection reason. FDR will remain active in the system.
+                            </p>
+                            <textarea
+                              rows={2}
+                              value={rejectionRemarks}
+                              onChange={(e) => setRejectionRemarks(e.target.value)}
+                              placeholder="Specify reasons for rejection (mandatory)..."
+                              className="w-full rounded border border-rose-300 bg-white p-2 text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-rose-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleReject(selectedRequest.id)}
+                              disabled={actionLoading}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-rose-700 px-4 py-2 font-semibold text-white shadow-xs hover:bg-rose-800 transition-colors disabled:opacity-75"
+                            >
+                              {actionLoading ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <span>Recording Rejection...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4" />
+                                  <span>Confirm Rejection</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

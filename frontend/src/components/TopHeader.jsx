@@ -10,9 +10,8 @@ import {
   Settings,
   HelpCircle,
   CheckCheck,
-  ExternalLink,
   X,
-  FileSpreadsheet,
+  Building,
 } from 'lucide-react';
 
 export default function TopHeader({
@@ -20,9 +19,11 @@ export default function TopHeader({
   onNavigate,
   onViewFdr,
   notifications,
-  fdrList,
+  fdrList = [],
   onActionFeedback,
-  unreadCount,
+  unreadCount = 0,
+  currentUser,
+  onLogout,
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -66,15 +67,26 @@ export default function TopHeader({
       return;
     }
     const query = val.toLowerCase().trim();
-    const matches = fdrList.filter(
-      (f) =>
-        f.fdrNumber.toLowerCase().includes(query) ||
-        f.institution.toLowerCase().includes(query) ||
-        f.bank.toLowerCase().includes(query)
-    ).slice(0, 5);
+    const matches = (fdrList || [])
+      .filter(
+        (f) =>
+          f.fdrNumber?.toLowerCase().includes(query) ||
+          f.institution?.toLowerCase().includes(query) ||
+          f.bank?.toLowerCase().includes(query)
+      )
+      .slice(0, 5);
     setSearchResults(matches);
     setShowSearchResults(true);
   };
+
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const role = currentUser?.role || 'INSTITUTION_USER';
 
   return (
     <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xs sm:px-6">
@@ -92,14 +104,16 @@ export default function TopHeader({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-slate-900 sm:text-xl">
-              Dashboard
+              AICTE Security Deposit &amp; FDR Portal
             </h1>
             <span className="hidden sm:inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-              <Shield className="h-3 w-3 text-blue-700" /> Bureau Portal
+              <Shield className="h-3 w-3 text-blue-700" /> Bureau System
             </span>
           </div>
           <p className="hidden text-xs text-slate-500 sm:block">
-            Overview of security deposits and fixed deposit records
+            {currentUser?.institution
+              ? `Scoped to: ${currentUser.institution.name}`
+              : 'All-India Regulatory Oversight & Lien Verification'}
           </p>
         </div>
       </div>
@@ -196,7 +210,7 @@ export default function TopHeader({
           {showNotifications && (
             <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-slate-200 bg-white shadow-2xl z-50 text-xs overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
-                <span className="font-bold text-slate-900">Bureau Notifications</span>
+                <span className="font-bold text-slate-900">System Notifications</span>
                 <button
                   type="button"
                   onClick={() => onActionFeedback('Marked all notifications as read')}
@@ -234,11 +248,11 @@ export default function TopHeader({
                   type="button"
                   onClick={() => {
                     setShowNotifications(false);
-                    onNavigate('audit-logs');
+                    onNavigate('dashboard');
                   }}
                   className="text-[11px] font-semibold text-blue-700 hover:underline"
                 >
-                  View complete event stream →
+                  View dashboard overview →
                 </button>
               </div>
             </div>
@@ -256,24 +270,43 @@ export default function TopHeader({
             className="flex items-center gap-2.5 rounded-lg p-1 hover:bg-slate-100 transition-colors"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-700 text-xs font-bold text-white shadow-xs">
-              AK
+              {getInitials(currentUser?.name)}
             </div>
             <div className="hidden text-left xl:block">
               <p className="text-xs font-semibold text-slate-800 leading-tight">
-                Dr. Amit K. Sharma
+                {currentUser?.name || 'Authenticated User'}
               </p>
-              <p className="text-[11px] text-slate-500">Bureau Officer</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                  role === 'ADMIN'
+                    ? 'bg-amber-100 text-amber-800'
+                    : role === 'AICTE_OFFICER'
+                    ? 'bg-blue-100 text-blue-800'
+                    : role === 'APPROVING_OFFICER'
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {role}
+                </span>
+              </div>
             </div>
           </button>
 
           {showProfileMenu && (
             <div className="absolute right-0 top-12 mt-2 w-64 rounded-xl border border-slate-200 bg-white shadow-2xl z-50 text-xs overflow-hidden">
               <div className="bg-slate-900 text-white p-3.5">
-                <p className="font-bold text-sm">Dr. Amit K. Sharma</p>
-                <p className="text-[11px] text-slate-300">amit.sharma@aicte-india.org</p>
-                <span className="mt-2 inline-block rounded bg-blue-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-                  Director (Regulation Bureau)
-                </span>
+                <p className="font-bold text-sm truncate">{currentUser?.name}</p>
+                <p className="text-[11px] text-slate-300 truncate">{currentUser?.email}</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="rounded bg-blue-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                    {role}
+                  </span>
+                  {currentUser?.institution && (
+                    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 truncate max-w-[130px]">
+                      {currentUser.institution.code}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="p-2 space-y-1">
@@ -281,12 +314,12 @@ export default function TopHeader({
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    onActionFeedback('Viewing Officer Profile: Dr. Amit K. Sharma (ID: AICTE-EMP-4019)');
+                    onNavigate('settings');
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors text-left"
                 >
                   <User className="h-4 w-4 text-slate-500" />
-                  <span>My Profile &amp; Role</span>
+                  <span>Account &amp; Security</span>
                 </button>
                 <button
                   type="button"
@@ -317,9 +350,9 @@ export default function TopHeader({
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    onActionFeedback('Signed out from AICTE Session (Demo Mode)');
+                    if (onLogout) onLogout();
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 transition-colors text-left font-semibold"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-rose-700 hover:bg-rose-50 transition-colors text-left font-semibold cursor-pointer"
                 >
                   <LogOut className="h-4 w-4 text-rose-600" />
                   <span>Sign Out</span>

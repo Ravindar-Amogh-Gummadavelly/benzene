@@ -1,6 +1,8 @@
 /**
  * Client for Reports endpoints (/api/reports)
+ * Uses apiFetch for automatic Bearer token injection
  */
+import { apiFetch } from './apiClient';
 
 export async function fetchFdrSummaryReport(params = {}) {
   const query = new URLSearchParams();
@@ -8,12 +10,12 @@ export async function fetchFdrSummaryReport(params = {}) {
   if (params.status && params.status !== 'All') query.set('status', params.status);
 
   const qs = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`/api/reports/fdr-summary${qs}`);
+  const res = await apiFetch(`/api/reports/fdr-summary${qs}`);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch FDR summary report: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
@@ -22,31 +24,31 @@ export async function fetchMaturityReport(params = {}) {
   if (params.timeframe) query.set('timeframe', params.timeframe);
 
   const qs = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`/api/reports/maturity${qs}`);
+  const res = await apiFetch(`/api/reports/maturity${qs}`);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch maturity report: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
 export async function fetchVerificationReport() {
-  const res = await fetch('/api/reports/verification');
+  const res = await apiFetch('/api/reports/verification');
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch verification report: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }
 
 export async function fetchReleaseReport() {
-  const res = await fetch('/api/reports/releases');
+  const res = await apiFetch('/api/reports/releases');
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch release report: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }

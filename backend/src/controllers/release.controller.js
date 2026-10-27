@@ -6,7 +6,14 @@ export const releaseController = {
    */
   async getAll(req, res) {
     try {
-      const { status, search, institutionId, fdrNumber } = req.query;
+      const { status, search, fdrNumber } = req.query;
+      let institutionId = req.query.institutionId;
+
+      // Scoping for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
       const releases = await releaseService.getAllReleases({
         status,
         search,
@@ -43,6 +50,16 @@ export const releaseController = {
         });
       }
 
+      // Scoping check for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (release.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to view release requests of another institution.',
+          });
+        }
+      }
+
       return res.status(200).json({
         status: 'ok',
         data: release,
@@ -62,11 +79,23 @@ export const releaseController = {
   async createRelease(req, res) {
     try {
       const { fdrId, fdrNumber, remarks } = req.body || {};
-      const created = await releaseService.createReleaseRequest({
-        fdrId,
-        fdrNumber,
-        remarks,
-      });
+
+      // If INSTITUTION_USER, verify the FDR belongs to them before creating release request
+      if (req.user?.role === 'INSTITUTION_USER') {
+        const { fdrService } = await import('../services/fdr.service.js');
+        const fdr = await fdrService.getFdrById(fdrId || fdrNumber);
+        if (!fdr || fdr.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You cannot request release for an FDR belonging to another institution.',
+          });
+        }
+      }
+
+      const created = await releaseService.createReleaseRequest(
+        { fdrId, fdrNumber, remarks },
+        req.user?.id
+      );
 
       return res.status(201).json({
         status: 'ok',
@@ -89,7 +118,26 @@ export const releaseController = {
     try {
       const { id } = req.params;
       const { remarks } = req.body || {};
-      const updated = await releaseService.updateReleaseRequest(id, { remarks });
+
+      const existing = await releaseService.getReleaseById(id);
+      if (!existing) {
+        return res.status(404).json({
+          status: 'error',
+          message: `Release request with ID '${id}' not found.`,
+        });
+      }
+
+      // Scoping check for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to update release requests of another institution.',
+          });
+        }
+      }
+
+      const updated = await releaseService.updateReleaseRequest(id, { remarks }, req.user?.id);
 
       return res.status(200).json({
         status: 'ok',
@@ -112,7 +160,7 @@ export const releaseController = {
     try {
       const { id } = req.params;
       const { remarks } = req.body || {};
-      const approved = await releaseService.approveRelease(id, { remarks });
+      const approved = await releaseService.approveRelease(id, { remarks }, req.user?.id);
 
       return res.status(200).json({
         status: 'ok',
@@ -135,7 +183,7 @@ export const releaseController = {
     try {
       const { id } = req.params;
       const { remarks } = req.body || {};
-      const rejected = await releaseService.rejectRelease(id, { remarks });
+      const rejected = await releaseService.rejectRelease(id, { remarks }, req.user?.id);
 
       return res.status(200).json({
         status: 'ok',

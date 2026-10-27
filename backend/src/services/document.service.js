@@ -152,6 +152,7 @@ export const documentService = {
     await this.logAudit({
       action: 'DOCUMENT_CREATED',
       entityId: created.id,
+      userId: actingUserId || null,
       details: `Document '${created.fileName}' (${created.documentType}) attached to FDR ${fdr.fdrNumber}.`,
     });
 
@@ -162,7 +163,7 @@ export const documentService = {
    * PUT /api/documents/:id
    * Update document metadata
    */
-  async updateDocument(id, { fileName, documentType, filePath }) {
+  async updateDocument(id, { fileName, documentType, filePath }, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid Document ID.');
@@ -191,6 +192,7 @@ export const documentService = {
     await this.logAudit({
       action: 'DOCUMENT_UPDATED',
       entityId: parsedId,
+      userId: actingUserId || null,
       details: `Document #${parsedId} metadata updated.`,
     });
 
@@ -206,7 +208,7 @@ export const documentService = {
    * DELETE /api/documents/:id
    * Delete document metadata
    */
-  async deleteDocument(id) {
+  async deleteDocument(id, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid Document ID.');
@@ -228,6 +230,7 @@ export const documentService = {
     await this.logAudit({
       action: 'DOCUMENT_DELETED',
       entityId: parsedId,
+      userId: actingUserId || null,
       details: `Document '${existing.fileName}' removed from FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}.`,
     });
 

@@ -6,7 +6,14 @@ export const verificationController = {
    */
   async getVerifications(req, res) {
     try {
-      const { status, search, institutionId } = req.query;
+      const { status, search } = req.query;
+      let institutionId = req.query.institutionId;
+
+      // Scoping for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
       const data = await verificationService.getAllVerifications({ status, search, institutionId });
       return res.status(200).json({
         status: 'ok',
@@ -37,6 +44,16 @@ export const verificationController = {
         });
       }
 
+      // Scoping check for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (record.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to view verification details of another institution.',
+          });
+        }
+      }
+
       return res.status(200).json({
         status: 'ok',
         data: record,
@@ -64,11 +81,16 @@ export const verificationController = {
     try {
       const { id } = req.params;
       const { remarks } = req.body || {};
-      const updated = await verificationService.approveVerification(id, { remarks });
+
+      const updated = await verificationService.approveVerification(
+        id,
+        { remarks },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',
-        message: 'Verification approved successfully.',
+        message: 'FDR verification approved successfully.',
         data: updated,
       });
     } catch (error) {
@@ -81,7 +103,7 @@ export const verificationController = {
       }
       return res.status(500).json({
         status: 'error',
-        message: 'Failed to approve verification.',
+        message: 'Failed to approve verification record.',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
@@ -95,22 +117,19 @@ export const verificationController = {
       const { id } = req.params;
       const { remarks } = req.body || {};
 
-      if (!remarks || typeof remarks !== 'string' || !remarks.trim()) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Discrepancy remarks are required and cannot be empty.',
-        });
-      }
-
-      const updated = await verificationService.raiseDiscrepancy(id, { remarks });
+      const updated = await verificationService.raiseDiscrepancy(
+        id,
+        { remarks },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',
-        message: 'Discrepancy raised successfully.',
+        message: 'Discrepancy notice flagged for FDR verification.',
         data: updated,
       });
     } catch (error) {
-      console.error(`Error raising discrepancy on ${req.params.id}:`, error);
+      console.error(`Error raising discrepancy on verification ${req.params.id}:`, error);
       if (error.statusCode === 400 || error.statusCode === 404) {
         return res.status(error.statusCode).json({
           status: 'error',
@@ -119,7 +138,7 @@ export const verificationController = {
       }
       return res.status(500).json({
         status: 'error',
-        message: 'Failed to raise discrepancy.',
+        message: 'Failed to flag discrepancy on verification record.',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
@@ -133,18 +152,15 @@ export const verificationController = {
       const { id } = req.params;
       const { remarks } = req.body || {};
 
-      if (!remarks || typeof remarks !== 'string' || !remarks.trim()) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'Rejection reason/remarks are required and cannot be empty.',
-        });
-      }
-
-      const updated = await verificationService.rejectVerification(id, { remarks });
+      const updated = await verificationService.rejectVerification(
+        id,
+        { remarks },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',
-        message: 'Verification rejected successfully.',
+        message: 'FDR verification rejected and marked with discrepancy.',
         data: updated,
       });
     } catch (error) {
@@ -157,7 +173,7 @@ export const verificationController = {
       }
       return res.status(500).json({
         status: 'error',
-        message: 'Failed to reject verification.',
+        message: 'Failed to reject verification record.',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }

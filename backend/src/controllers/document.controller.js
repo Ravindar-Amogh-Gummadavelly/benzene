@@ -7,12 +7,18 @@ export const documentController = {
   async getAll(req, res) {
     try {
       const { fdrRecordId, fdrNumber, documentType, search } = req.query;
-      const documents = await documentService.getAllDocuments({
+
+      let documents = await documentService.getAllDocuments({
         fdrRecordId,
         fdrNumber,
         documentType,
         search,
       });
+
+      // Institution scoping: if INSTITUTION_USER, only return documents belonging to their institution
+      if (req.user?.role === 'INSTITUTION_USER') {
+        documents = documents.filter((doc) => doc.institutionId === req.user.institutionId);
+      }
 
       return res.status(200).json({
         status: 'ok',
@@ -43,6 +49,16 @@ export const documentController = {
         });
       }
 
+      // Institution scoping check
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (document.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to access documents of another institution.',
+          });
+        }
+      }
+
       return res.status(200).json({
         status: 'ok',
         data: document,
@@ -62,13 +78,29 @@ export const documentController = {
   async createDocument(req, res) {
     try {
       const { fdrRecordId, fdrNumber, fileName, filePath, documentType } = req.body || {};
-      const created = await documentService.createDocument({
-        fdrRecordId,
-        fdrNumber,
-        fileName,
-        filePath,
-        documentType,
-      });
+
+      // If INSTITUTION_USER, verify the FDR belongs to them
+      if (req.user?.role === 'INSTITUTION_USER') {
+        const { fdrService } = await import('../services/fdr.service.js');
+        const fdr = await fdrService.getFdrById(fdrRecordId || fdrNumber);
+        if (!fdr || fdr.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You cannot attach documents to an FDR belonging to another institution.',
+          });
+        }
+      }
+
+      const created = await documentService.createDocument(
+        {
+          fdrRecordId,
+          fdrNumber,
+          fileName,
+          filePath,
+          documentType,
+        },
+        req.user?.id
+      );
 
       return res.status(201).json({
         status: 'ok',
@@ -91,11 +123,33 @@ export const documentController = {
     try {
       const { id } = req.params;
       const { fileName, documentType, filePath } = req.body || {};
-      const updated = await documentService.updateDocument(id, {
-        fileName,
-        documentType,
-        filePath,
-      });
+
+      const existing = await documentService.getDocumentById(id);
+      if (!existing) {
+        return res.status(404).json({
+          status: 'error',
+          message: `Document with ID '${id}' not found.`,
+        });
+      }
+
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to update documents of another institution.',
+          });
+        }
+      }
+
+      const updated = await documentService.updateDocument(
+        id,
+        {
+          fileName,
+          documentType,
+          filePath,
+        },
+        req.user?.id
+      );
 
       return res.status(200).json({
         status: 'ok',
@@ -117,14 +171,25 @@ export const documentController = {
   async deleteDocument(req, res) {
     try {
       const { id } = req.params;
-      const deleted = await documentService.deleteDocument(id);
 
-      if (!deleted) {
+      const existing = await documentService.getDocumentById(id);
+      if (!existing) {
         return res.status(404).json({
           status: 'error',
           message: `Document with ID '${id}' not found.`,
         });
       }
+
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to delete documents of another institution.',
+          });
+        }
+      }
+
+      const deleted = await documentService.deleteDocument(id, req.user?.id);
 
       return res.status(200).json({
         status: 'ok',

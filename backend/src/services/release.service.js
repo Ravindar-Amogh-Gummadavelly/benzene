@@ -205,7 +205,7 @@ export const releaseService = {
    *   remarks: string / reason
    * }
    */
-  async createReleaseRequest({ fdrId, fdrNumber, remarks }) {
+  async createReleaseRequest({ fdrId, fdrNumber, remarks }, actingUserId) {
     if (!fdrId && !fdrNumber) {
       const err = new Error('fdrId or fdrNumber is required to create a release request.');
       err.statusCode = 400;
@@ -272,6 +272,7 @@ export const releaseService = {
     await this.logAudit({
       action: 'RELEASE_REQUEST_CREATED',
       entityId: created.id,
+      userId: actingUserId || null,
       details: `Release request #${created.id} initiated for FDR ${fdr.fdrNumber}. Reason: ${finalRemarks}`,
     });
 
@@ -282,7 +283,7 @@ export const releaseService = {
    * PUT /api/releases/:id
    * Update remarks of an existing pending release request.
    */
-  async updateReleaseRequest(id, { remarks } = {}) {
+  async updateReleaseRequest(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid release request ID.');
@@ -310,6 +311,7 @@ export const releaseService = {
     await this.logAudit({
       action: 'RELEASE_REQUEST_UPDATED',
       entityId: parsedId,
+      userId: actingUserId || null,
       details: `Release request #${parsedId} remarks updated.`,
     });
 
@@ -320,7 +322,7 @@ export const releaseService = {
    * POST /api/releases/:id/approve
    * Approves release request, issues NOC, and transitions FDR to RELEASED.
    */
-  async approveRelease(id, { remarks } = {}) {
+  async approveRelease(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid release request ID.');
@@ -374,6 +376,7 @@ export const releaseService = {
     await this.logAudit({
       action: 'RELEASE_REQUEST_APPROVED',
       entityId: parsedId,
+      userId: actingUserId || null,
       details: `Release request #${parsedId} approved for FDR ${fdr?.fdrNumber}. Remarks: ${approvalRemarks}`,
     });
 
@@ -384,7 +387,7 @@ export const releaseService = {
    * POST /api/releases/:id/reject
    * Rejects release request with mandatory remarks, leaving FDR active/unchanged.
    */
-  async rejectRelease(id, { remarks } = {}) {
+  async rejectRelease(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid release request ID.');
@@ -438,6 +441,7 @@ export const releaseService = {
     await this.logAudit({
       action: 'RELEASE_REQUEST_REJECTED',
       entityId: parsedId,
+      userId: actingUserId || null,
       details: `Release request #${parsedId} rejected for FDR ${existing.fdrRecord?.fdrNumber}. Reason: ${remarks.trim()}`,
     });
 

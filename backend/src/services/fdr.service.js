@@ -176,7 +176,7 @@ export const fdrService = {
   /**
    * Create a new FDR record
    */
-  async createFdr(data) {
+  async createFdr(data, actingUserId) {
     // 1. Check if FDR Number already exists
     const existing = await db.orm.public.FdrRecord.where({ fdrNumber: data.fdrNumber.trim() }).first();
     if (existing) {
@@ -225,6 +225,7 @@ export const fdrService = {
         action: 'FDR_CREATED',
         entityType: 'FdrRecord',
         entityId: created.id,
+        userId: actingUserId || null,
         details: `FDR ${created.fdrNumber} created for institution '${institution.name}' in amount ${data.amount}.`,
         createdAt: new Date().toISOString(),
       });
@@ -239,7 +240,7 @@ export const fdrService = {
   /**
    * Update an existing FDR record
    */
-  async updateFdr(id, data) {
+  async updateFdr(id, data, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const error = new Error('Invalid FDR ID.');
@@ -295,6 +296,7 @@ export const fdrService = {
         action: 'FDR_UPDATED',
         entityType: 'FdrRecord',
         entityId: parsedId,
+        userId: actingUserId || null,
         details: `FDR ${existing.fdrNumber} updated with fields: ${Object.keys(updatePayload).join(', ')}.`,
         createdAt: new Date().toISOString(),
       });
@@ -308,7 +310,7 @@ export const fdrService = {
   /**
    * Delete an existing FDR record
    */
-  async deleteFdr(id) {
+  async deleteFdr(id, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const error = new Error('Invalid FDR ID.');
@@ -329,6 +331,7 @@ export const fdrService = {
         action: 'FDR_DELETED',
         entityType: 'FdrRecord',
         entityId: parsedId,
+        userId: actingUserId || null,
         details: `FDR ${existing.fdrNumber} (Bank: ${existing.bankName}) deleted from database.`,
         createdAt: new Date().toISOString(),
       });

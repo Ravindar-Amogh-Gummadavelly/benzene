@@ -12,16 +12,24 @@ import RenewalsPage from './components/RenewalsPage';
 import ReleaseRequestsPage from './components/ReleaseRequestsPage';
 import ReportsPage from './components/ReportsPage';
 import AuditLogsPage from './components/AuditLogsPage';
-import ComingSoonPage from './components/ComingSoonPage';
+import SettingsPage from './components/SettingsPage';
+import LoginPage from './components/LoginPage';
 import FdrDetailsModal from './components/FdrDetailsModal';
 import VerificationReviewModal from './components/VerificationReviewModal';
 import NewFdrModal from './components/NewFdrModal';
 
 import { INITIAL_NOTIFICATIONS } from './data/mockData';
 import { fetchDashboardStats } from './services/dashboardApi';
-import { CheckCircle2, X } from 'lucide-react';
+import { fetchCurrentUser } from './services/authApi';
+import { getStoredToken, setStoredToken, removeStoredToken } from './services/apiClient';
+import { CheckCircle2, X, ShieldAlert } from 'lucide-react';
 
 function App() {
+  // Authentication state
+  const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(getStoredToken());
+  const [authLoading, setAuthLoading] = useState(true);
+
   // Navigation & UI States
   const [activeNav, setActiveNav] = useState('dashboard');
   const [fdrListFilter, setFdrListFilter] = useState('All');
@@ -53,8 +61,53 @@ function App() {
     }, 4500);
   };
 
+  // Initial user session verification
+  useEffect(() => {
+    let isMounted = true;
+    async function initAuth() {
+      const stored = getStoredToken();
+      if (!stored) {
+        if (isMounted) setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const user = await fetchCurrentUser();
+        if (isMounted) {
+          setCurrentUser(user);
+        }
+      } catch (err) {
+        console.error('Session expired or invalid:', err);
+        removeStoredToken();
+        if (isMounted) {
+          setCurrentUser(null);
+          setToken(null);
+        }
+      } finally {
+        if (isMounted) setAuthLoading(false);
+      }
+    }
+
+    initAuth();
+
+    // Listen for unauthorized events across all API requests
+    const handleUnauthorized = () => {
+      removeStoredToken();
+      setCurrentUser(null);
+      setToken(null);
+      showToast('Session expired. Please sign in again.');
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
   // Sync real dashboard statistics from GET /api/dashboard/stats
   useEffect(() => {
+    if (!currentUser) return;
     let isMounted = true;
     async function loadStats() {
       try {
@@ -76,12 +129,31 @@ function App() {
       isMounted = false;
     };
   }, [
+    currentUser,
     verificationRefreshTrigger,
     fdrRefreshTrigger,
     renewalRefreshTrigger,
     releaseRefreshTrigger,
     globalRefreshTrigger,
   ]);
+
+  // Handle successful login
+  const handleLoginSuccess = (user, authToken) => {
+    setStoredToken(authToken);
+    setToken(authToken);
+    setCurrentUser(user);
+    setActiveNav('dashboard');
+    showToast(`Welcome back, ${user.name}!`);
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    removeStoredToken();
+    setToken(null);
+    setCurrentUser(null);
+    setActiveNav('dashboard');
+    showToast('Signed out successfully.');
+  };
 
   // Real Dashboard KPI definitions derived from PostgreSQL
   const dynamicKpiCards = [
@@ -99,72 +171,81 @@ function App() {
     },
     {
       id: 'active-fdrs',
-      title: 'Active FDRs',
+      title: 'Active Deposits',
       value: dashboardStats ? String(dashboardStats.activeFdrs) : '...',
-      subtext: dashboardStats && dashboardStats.totalFdrs > 0
-        ? `${Math.round((dashboardStats.activeFdrs / dashboardStats.totalFdrs) * 100)}% compliant in system`
-        : 'Active Lien Deposits',
-      trend: 'positive',
-      icon: 'ShieldCheck',
+      subtext: 'Lien active with Council',
+      trend: 'up',
+      icon: 'CheckCircle2',
       onClick: () => {
         setFdrListFilter('ACTIVE');
         setActiveNav('fdr-management');
       },
     },
     {
-      id: 'expiring-soon',
+      id: 'pending-verif',
+      title: 'Pending Verification',
+      value: dashboardStats ? String(dashboardStats.pendingVerifications) : '...',
+      subtext: 'Awaiting bureau officer review',
+      trend: 'alert',
+      icon: 'Clock',
+      onClick: () => {
+        if (currentUser?.role === 'INSTITUTION_USER') {
+          setFdrListFilter('UNDER_VERIFICATION');
+          setActiveNav('fdr-management');
+        } else {
+          setActiveNav('verification');
+        }
+      },
+    },
+    {
+      id: 'maturing-soon',
       title: 'Expiring in 30 Days',
       value: dashboardStats ? String(dashboardStats.expiringIn30Days) : '...',
-      subtext: 'Requires renewal notices',
-      trend: 'warning',
-      icon: 'Clock',
+      subtext: 'Renewal action required',
+      trend: 'down',
+      icon: 'AlertTriangle',
       onClick: () => {
         setActiveNav('renewals');
       },
     },
     {
-      id: 'pending-verification',
-      title: 'Pending Verification',
-      value: dashboardStats ? String(dashboardStats.pendingVerifications) : '...',
-      subtext: 'Awaiting bureau officer check',
-      trend: 'info',
-      icon: 'FileCheck',
-      onClick: () => {
-        setActiveNav('verification');
-      },
-    },
-    {
-      id: 'discrepancies',
-      title: 'Discrepancies',
-      value: dashboardStats ? String(dashboardStats.discrepancies) : '...',
-      subtext: 'Flagged by bank / officer',
-      trend: 'negative',
-      icon: 'AlertTriangle',
-      onClick: () => {
-        setFdrListFilter('DISCREPANCY');
-        setActiveNav('fdr-management');
-      },
-    },
-    {
-      id: 'release-requests',
+      id: 'release-req',
       title: 'Release Requests',
       value: dashboardStats ? String(dashboardStats.pendingReleaseRequests) : '...',
-      subtext: dashboardStats?.releasedFdrs ? `${dashboardStats.releasedFdrs} already released` : 'Pending Approval',
-      trend: 'purple',
-      icon: 'FileBadge',
+      subtext: 'NOC approval in progress',
+      trend: 'neutral',
+      icon: 'ArrowUpRight',
       onClick: () => {
         setActiveNav('release-requests');
       },
     },
   ];
 
-  // Navigation handler
-  const handleNavClick = (id) => {
-    setActiveNav(id);
-    setSidebarOpen(false);
-    if (id === 'fdr-management') {
-      setFdrListFilter('All');
+  // Dynamic status counts derived directly from PostgreSQL
+  const dynamicStatusCounts = dashboardStats?.statusCounts || {
+    ACTIVE: 0,
+    UNDER_VERIFICATION: 0,
+    SUBMITTED: 0,
+    APPROVED: 0,
+    EXPIRING_SOON: 0,
+    DISCREPANCY: 0,
+    RELEASE_REQUESTED: 0,
+    RELEASED: 0,
+    EXPIRED: 0,
+  };
+
+  const handleNavClick = (navId) => {
+    if (navId === 'logout') {
+      handleLogout();
+      return;
     }
+    setActiveNav(navId);
+    setSidebarOpen(false);
+  };
+
+  const handleStatusFilterClick = (statusKey) => {
+    setFdrListFilter(statusKey);
+    setActiveNav('fdr-management');
   };
 
   // Handle successful creation of real FDR in PostgreSQL
@@ -201,13 +282,39 @@ function App() {
     } else if (type === 'view_all_maturities') {
       setActiveNav('renewals');
     } else if (type === 'view_all_verifications') {
-      setActiveNav('verification');
+      if (currentUser?.role === 'INSTITUTION_USER') {
+        setFdrListFilter('UNDER_VERIFICATION');
+        setActiveNav('fdr-management');
+      } else {
+        setActiveNav('verification');
+      }
     } else if (type === 'view_audit_trail') {
-      setActiveNav('audit-logs');
+      if (currentUser?.role === 'INSTITUTION_USER') {
+        showToast('Audit trail is restricted to Council Regulatory Officers.');
+      } else {
+        setActiveNav('audit-logs');
+      }
     } else {
       showToast(payload || type);
     }
   };
+
+  // If loading session
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center text-white">
+        <div className="h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold tracking-wider text-slate-400 uppercase">
+          AICTE FDR Portal &bull; Initializing Security Session...
+        </p>
+      </div>
+    );
+  }
+
+  // If not authenticated, render LoginPage
+  if (!currentUser) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans antialiased">
@@ -223,11 +330,13 @@ function App() {
         />
       )}
 
-      {/* 1. Left Sidebar */}
+      {/* 1. Left Sidebar (Role-Aware) */}
       <Sidebar
         activeItem={activeNav}
         onItemClick={handleNavClick}
         isOpen={sidebarOpen}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         verificationCount={dashboardStats?.pendingVerifications || 0}
         renewalsCount={dashboardStats?.expiringIn30Days || 0}
         releaseCount={dashboardStats?.pendingReleaseRequests || 0}
@@ -235,7 +344,7 @@ function App() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0 overflow-y-auto">
-        {/* 2. Top Header */}
+        {/* 2. Top Header (With logged in user badge) */}
         <TopHeader
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onNavigate={(target, filter) => {
@@ -246,105 +355,136 @@ function App() {
           notifications={notifications}
           onActionFeedback={showToast}
           unreadCount={notifications.filter((n) => n.unread).length}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
 
+        {/* 3. Main Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl w-full mx-auto">
-          {/* Statutory Subtitle strip */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs text-blue-900">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold px-2 py-0.5 rounded bg-blue-700 text-white text-[11px] uppercase tracking-wider">
-                Official
-              </span>
-              <span>
-                All India Council for Technical Education — Statutory Body under Ministry of Education, Govt. of India
-              </span>
-            </div>
-            <div className="font-medium text-blue-800">
-              Lien Validation &amp; Tri-party Verification Active
-            </div>
-          </div>
-
-          {/* PAGE ROUTING BASED ON activeNav */}
-
-          {/* VIEW: DASHBOARD (FULLY BACKED BY REAL POSTGRESQL APIS) */}
+          {/* VIEW: DASHBOARD */}
           {activeNav === 'dashboard' && (
             <>
-              {/* 3. KPI CARDS */}
-              <section aria-label="KPI Cards Grid">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                  {dynamicKpiCards.map((kpi) => (
-                    <KpiCard
-                      key={kpi.id}
-                      title={kpi.title}
-                      value={kpi.value}
-                      subtext={kpi.subtext}
-                      trend={kpi.trend}
-                      icon={kpi.icon}
-                      onClick={kpi.onClick}
-                    />
-                  ))}
+              {/* Institution User Scoping Banner */}
+              {currentUser.role === 'INSTITUTION_USER' && currentUser.institution && (
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between shadow-xs">
+                  <div>
+                    <span className="font-bold">Institutional Account Active: </span>
+                    <span>{currentUser.institution.name} ({currentUser.institution.code})</span>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      All statistics, records, and renewal queues are scoped exclusively to your institutional ledger.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-200/60 text-emerald-900 font-bold rounded-md uppercase tracking-wider text-[10px]">
+                    Isolated Scope
+                  </span>
                 </div>
-              </section>
+              )}
 
-              {/* 4. FDR STATUS OVERVIEW (REAL POSTGRESQL DATA) */}
-              <section aria-label="Status Distribution Overview">
-                <StatusOverview
-                  refreshTrigger={globalRefreshTrigger}
-                  onSelectFilter={(status) => {
-                    setFdrListFilter(status);
-                    setActiveNav('fdr-management');
-                  }}
-                />
-              </section>
+              {/* KPI Cards Row */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {dynamicKpiCards.map((kpi) => (
+                  <KpiCard
+                    key={kpi.id}
+                    title={kpi.title}
+                    value={kpi.value}
+                    subtext={kpi.subtext}
+                    trend={kpi.trend}
+                    icon={kpi.icon}
+                    onClick={kpi.onClick}
+                  />
+                ))}
+              </div>
 
-              {/* 5. UPCOMING MATURITIES TABLE (REAL POSTGRESQL DATA) */}
-              <section aria-label="Upcoming Maturities Schedule">
-                <UpcomingMaturitiesTable
-                  refreshTrigger={globalRefreshTrigger}
-                  onAction={handleAction}
-                />
-              </section>
+              {/* Status Overview Banner */}
+              <StatusOverview
+                statusCounts={dynamicStatusCounts}
+                onSelectFilter={handleStatusFilterClick}
+              />
 
-              {/* 6 & 7. TWO-COLUMN SPLIT: PENDING VERIFICATION + RECENT ACTIVITY (REAL POSTGRESQL DATA) */}
-              <section
-                aria-label="Pending Verification and Audit Logs"
-                className="grid grid-cols-1 gap-6 lg:grid-cols-12"
-              >
+              {/* Action Modules Grid */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                {/* Pending Verification Section */}
                 <div className="lg:col-span-7">
                   <PendingVerificationSection
-                    refreshTrigger={globalRefreshTrigger}
-                    onAction={handleAction}
+                    onReviewRecord={(rec) => {
+                      if (currentUser.role === 'INSTITUTION_USER') {
+                        setSelectedFdrId(rec.fdrRecordId || rec.fdrNumber);
+                      } else {
+                        setSelectedVerificationId(rec.id);
+                      }
+                    }}
+                    onViewAll={() => {
+                      if (currentUser.role === 'INSTITUTION_USER') {
+                        setFdrListFilter('UNDER_VERIFICATION');
+                        setActiveNav('fdr-management');
+                      } else {
+                        setActiveNav('verification');
+                      }
+                    }}
+                    refreshTrigger={verificationRefreshTrigger}
                   />
                 </div>
+
+                {/* Upcoming Maturities */}
                 <div className="lg:col-span-5">
-                  <RecentActivity
-                    refreshTrigger={globalRefreshTrigger}
+                  <UpcomingMaturitiesTable
                     onAction={handleAction}
+                    onRenewFdr={(fdr) => {
+                      showToast(`Navigating to Renewal dossier for ${fdr.fdrNumber}`);
+                      setActiveNav('renewals');
+                    }}
+                    refreshTrigger={renewalRefreshTrigger}
                   />
                 </div>
-              </section>
+              </div>
+
+              {/* Recent Activity Audit Stream (Only for AICTE Officer, Approver, Admin) */}
+              {currentUser.role !== 'INSTITUTION_USER' && (
+                <div className="w-full">
+                  <RecentActivity
+                    onAction={handleAction}
+                    refreshTrigger={globalRefreshTrigger}
+                  />
+                </div>
+              )}
             </>
           )}
 
-          {/* VIEW: FDR MANAGEMENT (CONNECTED TO REAL POSTGRESQL API) */}
+          {/* VIEW: FDR MANAGEMENT */}
           {activeNav === 'fdr-management' && (
             <FdrManagementPage
+              onViewFdr={(fdr) => setSelectedFdrId(fdr.id || fdr.fdrNumber)}
+              onAddNewFdr={() => setIsAddFdrOpen(true)}
               initialFilter={fdrListFilter}
               refreshTrigger={fdrRefreshTrigger}
-              onViewFdr={(id) => setSelectedFdrId(id)}
-              onAddNewFdr={() => setIsAddFdrOpen(true)}
             />
           )}
 
-          {/* VIEW: VERIFICATION QUEUE (CONNECTED TO REAL POSTGRESQL API) */}
+          {/* VIEW: VERIFICATION (Only AICTE_OFFICER and ADMIN) */}
           {activeNav === 'verification' && (
-            <VerificationPage
-              refreshTrigger={verificationRefreshTrigger}
-              onReview={(verId) => setSelectedVerificationId(verId)}
-            />
+            currentUser.role === 'INSTITUTION_USER' || currentUser.role === 'APPROVING_OFFICER' ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
+                <ShieldAlert className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                <h3 className="font-bold text-slate-800">Verification Access Restricted</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Only designated AICTE Bureau Verification Officers have access to review and approve FDR records.
+                </p>
+              </div>
+            ) : (
+              <VerificationPage
+                onReviewItem={(item) => setSelectedVerificationId(item.id)}
+                refreshTrigger={verificationRefreshTrigger}
+                onActionFeedback={(msg) => {
+                  showToast(msg);
+                  setFdrRefreshTrigger((prev) => prev + 1);
+                  setVerificationRefreshTrigger((prev) => prev + 1);
+                  setGlobalRefreshTrigger((prev) => prev + 1);
+                }}
+              />
+            )
           )}
 
-          {/* VIEW: RENEWALS (CONNECTED TO REAL POSTGRESQL API) */}
+          {/* VIEW: RENEWALS & MATURITY TRACKING */}
           {activeNav === 'renewals' && (
             <RenewalsPage
               refreshTrigger={renewalRefreshTrigger}
@@ -358,9 +498,10 @@ function App() {
             />
           )}
 
-          {/* VIEW: RELEASE REQUESTS (CONNECTED TO REAL POSTGRESQL API) */}
+          {/* VIEW: RELEASE REQUESTS */}
           {activeNav === 'release-requests' && (
             <ReleaseRequestsPage
+              currentUser={currentUser}
               refreshTrigger={releaseRefreshTrigger}
               onActionFeedback={(msg) => {
                 showToast(msg);
@@ -374,20 +515,39 @@ function App() {
 
           {/* VIEW: REAL REPORTS PAGE */}
           {activeNav === 'reports' && (
-            <ReportsPage onActionFeedback={showToast} />
+            currentUser.role === 'INSTITUTION_USER' ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
+                <ShieldAlert className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                <h3 className="font-bold text-slate-800">Reports Restricted</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Council-wide reports are restricted to AICTE Bureau Officers.
+                </p>
+              </div>
+            ) : (
+              <ReportsPage onActionFeedback={showToast} />
+            )
           )}
 
           {/* VIEW: REAL AUDIT LOGS PAGE */}
           {activeNav === 'audit-logs' && (
-            <AuditLogsPage onActionFeedback={showToast} />
+            currentUser.role === 'INSTITUTION_USER' ? (
+              <div className="p-8 text-center bg-white rounded-xl border border-slate-200">
+                <ShieldAlert className="h-10 w-10 text-amber-500 mx-auto mb-2" />
+                <h3 className="font-bold text-slate-800">Audit Logs Restricted</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Regulatory audit logs are accessible only by Council Officers and System Administrators.
+                </p>
+              </div>
+            ) : (
+              <AuditLogsPage onActionFeedback={showToast} />
+            )
           )}
 
-          {/* VIEW: SETTINGS COMING SOON */}
+          {/* VIEW: SETTINGS & USER MANAGEMENT */}
           {activeNav === 'settings' && (
-            <ComingSoonPage
-              title="Bureau &amp; Portal Settings"
-              description="Configure statutory FDR threshold amounts, notice trigger periods, and bank API integration credentials."
-              onBackToDashboard={() => setActiveNav('dashboard')}
+            <SettingsPage
+              currentUser={currentUser}
+              onShowToast={showToast}
             />
           )}
         </main>

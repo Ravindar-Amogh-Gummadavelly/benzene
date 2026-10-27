@@ -1,6 +1,8 @@
 /**
  * Client for Audit Logs endpoints (/api/audit-logs)
+ * Uses apiFetch for automatic Bearer token injection
  */
+import { apiFetch } from './apiClient';
 
 export async function fetchAuditLogs(params = {}) {
   const query = new URLSearchParams();
@@ -12,21 +14,21 @@ export async function fetchAuditLogs(params = {}) {
   if (params.toDate) query.set('toDate', params.toDate);
 
   const qs = query.toString() ? `?${query.toString()}` : '';
-  const res = await fetch(`/api/audit-logs${qs}`);
+  const res = await apiFetch(`/api/audit-logs${qs}`);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch audit logs: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data || [];
 }
 
 export async function fetchAuditLogById(id) {
-  const res = await fetch(`/api/audit-logs/${id}`);
+  const res = await apiFetch(`/api/audit-logs/${id}`);
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.message || `Failed to fetch audit log: ${res.statusText}`);
   }
-  const result = await res.json();
+  const result = await res.json().catch(() => ({}));
   return result.data;
 }

@@ -8,7 +8,14 @@ export const fdrController = {
    */
   async getFdrs(req, res) {
     try {
-      const { status, institutionId, search } = req.query;
+      const { status, search } = req.query;
+      let institutionId = req.query.institutionId;
+
+      // Enforce institution scoping for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
       const data = await fdrService.getAllFdrs({ status, institutionId, search });
       return res.status(200).json({
         status: 'ok',
@@ -29,7 +36,12 @@ export const fdrController = {
    */
   async getStats(req, res) {
     try {
-      const data = await fdrService.getStats();
+      let institutionId = req.query.institutionId;
+      if (req.user?.role === 'INSTITUTION_USER') {
+        institutionId = req.user.institutionId;
+      }
+
+      const data = await fdrService.getStats({ institutionId });
       return res.status(200).json({
         status: 'ok',
         data,
@@ -57,6 +69,16 @@ export const fdrController = {
           status: 'error',
           message: `FDR record with ID or number '${id}' not found.`,
         });
+      }
+
+      // Check scoping for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (record.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to access FDR records of another institution.',
+          });
+        }
       }
 
       return res.status(200).json({
@@ -87,7 +109,18 @@ export const fdrController = {
         });
       }
 
-      const created = await fdrService.createFdr(req.body);
+      const payload = { ...req.body };
+
+      // Scoping: If INSTITUTION_USER, bind strictly to own institution
+      if (req.user?.role === 'INSTITUTION_USER') {
+        payload.institutionId = req.user.institutionId;
+        if (req.user.institution) {
+          payload.institution = req.user.institution.name;
+          payload.aicteApplicationId = req.user.institution.code;
+        }
+      }
+
+      const created = await fdrService.createFdr(payload, req.user?.id);
       return res.status(201).json({
         status: 'ok',
         data: created,
@@ -115,6 +148,24 @@ export const fdrController = {
     try {
       const { id } = req.params;
 
+      const existing = await fdrService.getFdrById(id);
+      if (!existing) {
+        return res.status(404).json({
+          status: 'error',
+          message: `FDR record with ID '${id}' not found.`,
+        });
+      }
+
+      // Scoping check for INSTITUTION_USER
+      if (req.user?.role === 'INSTITUTION_USER') {
+        if (existing.institutionId !== req.user.institutionId) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Forbidden. You do not have permission to update FDR records of another institution.',
+          });
+        }
+      }
+
       const validation = validateFdrInput(req.body, true);
       if (!validation.isValid) {
         return res.status(400).json({
@@ -124,13 +175,7 @@ export const fdrController = {
         });
       }
 
-      const updated = await fdrService.updateFdr(id, req.body);
-      if (!updated) {
-        return res.status(404).json({
-          status: 'error',
-          message: `FDR record with ID '${id}' not found.`,
-        });
-      }
+      const updated = await fdrService.updateFdr(id, req.body, req.user?.id);
 
       return res.status(200).json({
         status: 'ok',
@@ -158,7 +203,16 @@ export const fdrController = {
   async deleteFdr(req, res) {
     try {
       const { id } = req.params;
-      const success = await fdrService.deleteFdr(id);
+
+      // Scoping check: INSTITUTION_USER cannot delete FDR records
+      if (req.user?.role === 'INSTITUTION_USER') {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Forbidden. Institution users are not authorized to delete FDR records.',
+        });
+      }
+
+      const success = await fdrService.deleteFdr(id, req.user?.id);
 
       if (!success) {
         return res.status(404).json({

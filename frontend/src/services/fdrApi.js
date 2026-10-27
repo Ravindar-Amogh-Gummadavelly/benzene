@@ -1,7 +1,8 @@
 /**
  * API client helper for FDR operations
- * Uses Vite development proxy (/api)
+ * Uses apiFetch for automatic Bearer token injection
  */
+import { apiFetch } from './apiClient';
 
 export async function fetchFdrs({ status, institutionId, search } = {}) {
   const params = new URLSearchParams();
@@ -16,8 +17,8 @@ export async function fetchFdrs({ status, institutionId, search } = {}) {
   }
 
   const queryStr = params.toString() ? `?${params.toString()}` : '';
-  const res = await fetch(`/api/fdr${queryStr}`);
-  const json = await res.json();
+  const res = await apiFetch(`/api/fdr${queryStr}`);
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
     throw new Error(json.message || 'Failed to fetch FDR records from server.');
@@ -27,8 +28,8 @@ export async function fetchFdrs({ status, institutionId, search } = {}) {
 }
 
 export async function fetchFdrById(id) {
-  const res = await fetch(`/api/fdr/${encodeURIComponent(id)}`);
-  const json = await res.json();
+  const res = await apiFetch(`/api/fdr/${encodeURIComponent(id)}`);
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
     throw new Error(json.message || `Failed to fetch FDR details for ID '${id}'.`);
@@ -38,7 +39,7 @@ export async function fetchFdrById(id) {
 }
 
 export async function createFdr(payload) {
-  const res = await fetch('/api/fdr', {
+  const res = await apiFetch('/api/fdr', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -46,7 +47,7 @@ export async function createFdr(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
     const errorMsg = json.errors ? json.errors.join(' ') : json.message || 'Failed to create FDR.';
@@ -59,7 +60,7 @@ export async function createFdr(payload) {
 }
 
 export async function updateFdr(id, payload) {
-  const res = await fetch(`/api/fdr/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`/api/fdr/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -67,7 +68,7 @@ export async function updateFdr(id, payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
     const errorMsg = json.errors ? json.errors.join(' ') : json.message || 'Failed to update FDR.';
@@ -80,25 +81,25 @@ export async function updateFdr(id, payload) {
 }
 
 export async function deleteFdr(id) {
-  const res = await fetch(`/api/fdr/${encodeURIComponent(id)}`, {
+  const res = await apiFetch(`/api/fdr/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
 
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
-    throw new Error(json.message || 'Failed to delete FDR record.');
+    throw new Error(json.message || `Failed to delete FDR ID '${id}'.`);
   }
 
-  return json;
+  return json.data;
 }
 
 export async function fetchFdrStats() {
-  const res = await fetch('/api/fdr/stats');
-  const json = await res.json();
+  const res = await apiFetch('/api/fdr/stats');
+  const json = await res.json().catch(() => ({}));
 
   if (!res.ok || json.status !== 'ok') {
-    throw new Error(json.message || 'Failed to fetch FDR statistics.');
+    throw new Error(json.message || 'Failed to fetch FDR summary statistics.');
   }
 
   return json.data;

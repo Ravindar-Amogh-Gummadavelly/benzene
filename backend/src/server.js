@@ -1,8 +1,11 @@
 import './prisma/db.ts';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
+
 import healthRouter from './routes/health.routes.js';
+import authRouter from './routes/auth.routes.js';
 import fdrRouter from './routes/fdr.routes.js';
 import verificationRouter from './routes/verification.routes.js';
 import renewalRouter from './routes/renewal.routes.js';
@@ -12,17 +15,39 @@ import auditRouter from './routes/audit.routes.js';
 import dashboardRouter from './routes/dashboard.routes.js';
 import reportRouter from './routes/report.routes.js';
 
+import { authService } from './services/auth.service.js';
+
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security Middleware
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Allow local development scripts/styles
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
-// Routes
+app.use(
+  cors({
+    origin: true, // Allow frontend dev server and production origin
+    credentials: true,
+  })
+);
+
+// Body parsing with safe limits
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+// Public health route
 app.use('/api', healthRouter);
+
+// Authentication & user management routes
+app.use('/api/auth', authRouter);
+
+// Protected module routes (RBAC & scoping enforced in route definitions)
 app.use('/api/fdr', fdrRouter);
 app.use('/api/verifications', verificationRouter);
 app.use('/api/renewals', renewalRouter);
@@ -37,7 +62,7 @@ app.get('/', (req, res) => {
   res.send('AICTE Security Deposit & FDR Management Portal API');
 });
 
-// Database test
+// Database test endpoint
 app.get('/api/db-test', async (req, res) => {
   try {
     res.json({
@@ -53,7 +78,24 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
-// Start Server
-app.listen(PORT, () => {
+// Centralized error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled application error:', err);
+  const status = err.statusCode || 500;
+  return res.status(status).json({
+    status: 'error',
+    message: err.message || 'Internal server error occurred.',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+  });
+});
+
+// Start Server and auto-provision demo accounts safely
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  try {
+    await authService.ensureDemoAccounts();
+    console.log('Demo accounts verified and provisioned successfully.');
+  } catch (err) {
+    console.warn('Notice: Could not auto-provision demo accounts at startup:', err.message);
+  }
 });

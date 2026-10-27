@@ -204,7 +204,7 @@ export const verificationService = {
    * Transitions Verification: PENDING -> VERIFIED
    * Transitions associated FdrRecord: UNDER_VERIFICATION/SUBMITTED -> APPROVED (or ACTIVE)
    */
-  async approveVerification(id, { remarks } = {}) {
+  async approveVerification(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid verification ID.');
@@ -218,8 +218,6 @@ export const verificationService = {
       err.statusCode = 404;
       throw err;
     }
-
-    const nowInstant = globalThis.Temporal.Instant.from(new Date().toISOString());
 
     // 1. Update verification
     await db.orm.public.Verification.where({ id: parsedId }).update({
@@ -240,6 +238,7 @@ export const verificationService = {
         action: 'VERIFICATION_APPROVED',
         entityType: 'Verification',
         entityId: parsedId,
+        userId: actingUserId || null,
         details: `Verification #${parsedId} approved for FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}. Status updated to APPROVED.`,
         createdAt: new Date().toISOString(),
       });
@@ -256,7 +255,7 @@ export const verificationService = {
    * Transitions Verification: PENDING -> DISCREPANCY
    * Transitions associated FdrRecord: -> DISCREPANCY
    */
-  async raiseDiscrepancy(id, { remarks } = {}) {
+  async raiseDiscrepancy(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid verification ID.');
@@ -296,6 +295,7 @@ export const verificationService = {
         action: 'VERIFICATION_DISCREPANCY',
         entityType: 'Verification',
         entityId: parsedId,
+        userId: actingUserId || null,
         details: `Discrepancy raised on verification #${parsedId} (FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}): ${remarks.trim()}`,
         createdAt: new Date().toISOString(),
       });
@@ -312,7 +312,7 @@ export const verificationService = {
    * Transitions Verification: PENDING -> REJECTED
    * Transitions associated FdrRecord: -> DISCREPANCY or SUBMITTED
    */
-  async rejectVerification(id, { remarks } = {}) {
+  async rejectVerification(id, { remarks } = {}, actingUserId) {
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       const err = new Error('Invalid verification ID.');
@@ -352,6 +352,7 @@ export const verificationService = {
         action: 'VERIFICATION_REJECTED',
         entityType: 'Verification',
         entityId: parsedId,
+        userId: actingUserId || null,
         details: `Verification #${parsedId} rejected for FDR ${existing.fdrRecord?.fdrNumber || existing.fdrRecordId}: ${remarks.trim()}`,
         createdAt: new Date().toISOString(),
       });

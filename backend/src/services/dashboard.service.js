@@ -2,13 +2,18 @@ import { db } from '../prisma/db.ts';
 
 export const dashboardService = {
   /**
-   * Calculate real dashboard stats from PostgreSQL.
+   * Calculate real dashboard stats from PostgreSQL, optionally scoped by institutionId.
    */
-  async getStats() {
-    const fdrs = await db.orm.public.FdrRecord.include('institution').all();
-    const verifications = await db.orm.public.Verification.all();
-    const renewals = await db.orm.public.Renewal.all();
-    const releases = await db.orm.public.ReleaseRequest.all();
+  async getStats({ institutionId } = {}) {
+    let query = db.orm.public.FdrRecord.include('institution');
+    if (institutionId) {
+      query = query.where({ institutionId: parseInt(institutionId, 10) });
+    }
+
+    const fdrs = await query.all();
+    const verifications = await db.orm.public.Verification.include('fdrRecord').all();
+    const renewals = await db.orm.public.Renewal.include('fdrRecord').all();
+    const releases = await db.orm.public.ReleaseRequest.include('fdrRecord').all();
 
     const now = new Date();
     const thirtyDaysAhead = new Date();
@@ -52,11 +57,17 @@ export const dashboardService = {
       }
     }
 
-    // Pending verifications in queue
-    const pendingVerifications = verifications.filter((v) => v.status === 'PENDING').length;
+    // Scoped pending verifications
+    const scopedVerifications = institutionId
+      ? verifications.filter((v) => v.fdrRecord?.institutionId === parseInt(institutionId, 10))
+      : verifications;
+    const pendingVerifications = scopedVerifications.filter((v) => v.status === 'PENDING').length;
 
-    // Pending release requests in queue
-    const pendingReleases = releases.filter(
+    // Scoped pending releases
+    const scopedReleases = institutionId
+      ? releases.filter((r) => r.fdrRecord?.institutionId === parseInt(institutionId, 10))
+      : releases;
+    const pendingReleases = scopedReleases.filter(
       (r) => !r.approvedAt && (!r.remarks || !r.remarks.startsWith('[REJECTED]'))
     ).length;
 
