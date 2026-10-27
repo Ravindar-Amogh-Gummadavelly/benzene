@@ -152,7 +152,7 @@ export default function LoginPage({ onLoginSuccess }) {
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 Demo Evaluation Roles
               </span>
-              <span className="text-[10px] text-blue-400 font-mono">pass: password123</span>
+              <span className="text-[10px] text-slate-400 font-medium">Quick Select Role</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-xs">

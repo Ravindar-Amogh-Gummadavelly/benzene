@@ -66,7 +66,7 @@ export async function createRenewal(fdrId, data = {}) {
  */
 export async function completeRenewal(renewalId, data = {}) {
   const res = await apiFetch(`/api/renewals/${renewalId}/complete`, {
-    method: 'PATCH',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
