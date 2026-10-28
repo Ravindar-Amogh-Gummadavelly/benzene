@@ -2,8 +2,12 @@ import 'dotenv/config';
 import { Temporal } from '@js-temporal/polyfill';
 
 // Ensure global Temporal API is available for Prisma 8 timestamptz-temporal codec
-if (!globalThis.Temporal) {
-  globalThis.Temporal = Temporal;
+if (!('Temporal' in globalThis)) {
+  Object.defineProperty(globalThis, 'Temporal', {
+    value: Temporal,
+    writable: true,
+    configurable: true,
+  });
 }
 
 import postgres from '@prisma/orm-postgres/runtime';
